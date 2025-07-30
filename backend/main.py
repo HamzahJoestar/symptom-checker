@@ -3,10 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict
 import re
+from dotenv import load_dotenv
+import os
 import openai
 
 # Set your OpenAI API key
-openai.api_key = "insert_OpenAPI_key"
+load_dotenv()  # Loads from .env
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = FastAPI()
 
