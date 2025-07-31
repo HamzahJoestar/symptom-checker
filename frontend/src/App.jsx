@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import InputForm from "./components/InputForm";
 
 function App() {
@@ -17,6 +17,14 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
   // Setup for speech recognition
   let recognition = null;
   if (typeof window !== "undefined" && "webkitSpeechRecognition" in window) {
@@ -26,7 +34,6 @@ function App() {
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
   }
-  
 
   // Handles submitting the symptom to the backend
   const handleSymptomSubmit = async (text) => {
@@ -94,76 +101,98 @@ function App() {
   };
 
   return (
-    <div className="p-6 max-w-xl mx-auto font-sans">
-      <h1 className="text-3xl font-bold text-blue-600 mb-4">Symptom Checker</h1>
-      <InputForm onSubmit={handleSymptomSubmit} />
+    <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="flex gap-6">
+        {/* Left: Search History */}
+        <div className="w-1/4">
+          {searchHistory.length > 0 && (
+            <div className="bg-white p-4 rounded shadow text-black">
+              <h2 className="text-lg font-semibold mb-2">Search History</h2>
+              <ul className="list-disc ml-5 text-sm">
+                {searchHistory.map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
+              </ul>
+              <button
+                className="mt-2 px-2 py-1 bg-red-100 hover:bg-red-200 text-sm rounded"
+                onClick={() => {
+                  setSearchHistory([]);
+                  localStorage.removeItem("symptomHistory");
+                }}
+              >
+                Clear History
+              </button>
+            </div>
+          )}
+        </div>
 
-      <div className="space-y-4">
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`p-3 rounded ${
-              msg.role === "user"
-                ? "bg-blue-100 text-right"
-                : "bg-green-100 text-left"
-            }`}
-          >
-            <p>
-              <strong>{msg.role === "user" ? "You" : "Assistant"}:</strong>{" "}
-              {msg.content}
-            </p>
+        {/* Right: Chat + Input */}
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold text-blue-600 mb-4 text-center">
+            Symptom Checker
+          </h1>
+          <InputForm onSubmit={handleSymptomSubmit} />
 
-            {/* Only show feedback buttons if this is an assistant message and hasn’t been rated yet */}
-            {msg.role === "assistant" && !feedbackGiven[i] && (
-              <div className="mt-1 text-sm">
-                Was this helpful?
-                <button
-                  className="ml-2 px-2 py-1 bg-green-200 hover:bg-green-300 rounded"
-                  onClick={() => sendFeedback(i, msg.content, true)}
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            {/* Chat bubbles go here */}
+            {(() => {
+              const pairs = [];
+              for (let i = 0; i < messages.length; i += 2) {
+                pairs.push(messages.slice(i, i + 2));
+              }
+
+              return pairs.flat().map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`p-3 rounded ${
+                    msg.role === "user"
+                      ? "bg-blue-600 text-right text-white"
+                      : "bg-green-600 text-left text-white"
+                  }`}
                 >
-                  Yes
-                </button>
-                <button
-                  className="ml-2 px-2 py-1 bg-red-200 hover:bg-red-300 rounded"
-                  onClick={() => sendFeedback(i, msg.content, false)}
-                >
-                  No
-                </button>
-              </div>
-            )}
+                  <p>
+                    <strong>
+                      {msg.role === "user" ? "You" : "Assistant"}:
+                    </strong>{" "}
+                    {msg.content}
+                  </p>
 
-            {/* Show extra info like severity and confidence */}
-            {msg.role === "assistant" && (
-              <p className="text-sm text-gray-500">
-                [Severity: {msg.severity} | Confidence: {msg.confidence}]
-              </p>
-            )}
+                  {msg.role === "assistant" && (
+                    <>
+                      {!feedbackGiven[idx] && (
+                        <div className="mt-1 text-sm">
+                          Was this helpful?
+                          <button
+                            className="ml-2 px-2 py-1 bg-green-800 hover:bg-green-700 rounded"
+                            onClick={() => sendFeedback(idx, msg.content, true)}
+                          >
+                            Yes
+                          </button>
+                          <button
+                            className="ml-2 px-2 py-1 bg-red-600 hover:bg-red-500 rounded"
+                            onClick={() =>
+                              sendFeedback(idx, msg.content, false)
+                            }
+                          >
+                            No
+                          </button>
+                        </div>
+                      )}
+                      <p className="text-sm text-gray-200">
+                        [Severity: {msg.severity} | Confidence: {msg.confidence}
+                        ]
+                      </p>
+                    </>
+                  )}
+                </div>
+              ));
+            })()}
+            <div ref={chatEndRef} />
           </div>
-        ))}
 
-        {loading && <p className="text-gray-500">Thinking...</p>}
-        {error && <p className="text-red-500">{error}</p>}
-
-        {/* Show search history if available */}
-        {searchHistory.length > 0 && (
-          <div className="mt-6">
-            <h2 className="text-lg font-semibold mb-2">Search History</h2>
-            <ul className="list-disc ml-5 text-sm text-gray-700">
-              {searchHistory.map((item, i) => (
-                <li key={i}>{item}</li>
-              ))}
-            </ul>
-            <button
-              className="mt-2 px-2 py-1 bg-red-100 hover:bg-red-200 text-sm rounded"
-              onClick={() => {
-                setSearchHistory([]);
-                localStorage.removeItem("symptomHistory");
-              }}
-            >
-              Clear History
-            </button>
-          </div>
-        )}
+          {loading && <p className="text-gray-500">Thinking...</p>}
+          {error && <p className="text-red-500">{error}</p>}
+        </div>
       </div>
     </div>
   );
